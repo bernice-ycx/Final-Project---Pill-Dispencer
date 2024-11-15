@@ -1,0 +1,47 @@
+#include <Wire.h>
+#include <RTClib.h>
+
+// Declare RTC
+RTC_DS3231 rtc;
+
+// Array to store days of the week for display
+const char* daysOfTheWeek[] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+
+void setup() {
+  Serial.begin(9600);  // Start serial communication
+  
+  if (!rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    while (1);  // Stop execution if RTC not found
+  }
+
+  // Set RTC time to 7:00 AM on November 14, 2024, always (even if RTC didn't lose power)
+  rtc.adjust(DateTime(2024, 11, 14, 7, 0, 0));  // Set to 7:00 AM, November 14, 2024
+  
+  Serial.println("RTC Time set to 7:00 AM on Nov 14, 2024");
+}
+
+void loop() {
+  DateTime now = rtc.now();
+  
+  // Print the current date and time to the Serial Monitor
+  Serial.print("Current Date & Time: ");
+  Serial.print(now.year());
+  Serial.print('/');
+  Serial.print(now.month());
+  Serial.print('/');
+  Serial.print(now.day());
+
+  Serial.print(" (");
+ 
+  Serial.print(") ");
+
+  // Print the current time (hour:minute:second)
+  Serial.print(now.hour());
+  Serial.print(':');
+  Serial.print(now.minute());
+  Serial.print(':');
+  Serial.println(now.second());
+
+  delay(1000);  // Wait for 1 second
+}
