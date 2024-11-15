@@ -1,0 +1,50 @@
+// Pin Definitions
+const int buttonPin = 9;  // Pin where the button is connected
+const int buzzerPin = 13;  // Pin where the buzzer is connected
+const int ledPin = 13;    // Pin where the LED is connected (onboard LED)
+
+int buttonState = 0;  // Variable to store button state
+
+void setup() {
+  // Initialize the button pin as an input:
+  pinMode(buttonPin, INPUT);  // Using external pull-down resistor
+  
+  // Initialize the buzzer pin as an output:
+  pinMode(buzzerPin, OUTPUT);
+  
+  // Initialize the LED pin as an output:
+  pinMode(ledPin, OUTPUT);
+  
+  // Start serial communication for debugging (optional)
+  Serial.begin(9600);
+}
+
+void loop() {
+  // Read the state of the button (button is LOW when pressed, HIGH when not pressed)
+  buttonState = digitalRead(buttonPin);
+  
+  // If the button is pressed (LOW because of the external pull-down resistor):
+  if (buttonState == LOW) {
+    // Turn on the LED
+    digitalWrite(ledPin, HIGH);
+    
+    // Play the buzzer sound
+    tone(buzzerPin, 1000);  // 1000 Hz sound for the buzzer
+    
+    // Print a message to the serial monitor (optional)
+    Serial.println("Button pressed: Buzzer and LED ON");
+  } else {
+    // If the button is not pressed (HIGH):
+    // Turn off the LED
+    digitalWrite(ledPin, LOW);
+    
+    // Stop the buzzer sound
+    noTone(buzzerPin);
+    
+    // Print a message to the serial monitor (optional)
+    Serial.println("Button not pressed: Buzzer and LED OFF");
+  }
+  
+  // Small delay for debouncing the button (optional)
+  delay(500);
+}
