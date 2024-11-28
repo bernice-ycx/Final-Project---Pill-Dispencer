@@ -1,0 +1,283 @@
+#include <Wire.h>
+#include <RTClib.h>
+#include <LiquidCrystal_I2C.h>
+#include <EEPROM.h>
+#include <Stepper.h>
+
+// Declare RTC
+RTC_DS3231 rtc;
+
+// Declare LCD using I2C (Address 0x27, 16x2 LCD)
+LiquidCrystal_I2C lcd(0x27, 16, 2); // Address 0x27 for a 16x2 LCD
+
+int val;
+int addr = 0;
+
+const int stepsPerRevolution = 2048;
+Stepper stepperName = Stepper(stepsPerRevolution, 10,12,11,13);
+
+//Divide the degrees per step by 360 to get the steps
+
+
+// Declare push button states and flags
+int push1state = 0, push2state = 0, push3state = 0;
+int push1Flag = 0, push2Flag = 0, push3Flag = 0;
+int pushpressed = 0; // Flag to check if stop button was pressed
+const int stopPin = A0; // Stop button pin
+
+
+
+// Declare screen and buzzer-related variables
+int screens = 0;
+int maxScreen = 2;
+bool isScreenChanged = true;
+long previousMillis = 0;
+long interval = 500;
+int ledPin = LED_BUILTIN; // Use onboard LED
+int ledState = LOW;
+int buzz = 4; // Buzzer pin
+
+// Push button pins
+int push1pin = 9;
+int push2pin = 8;
+int push3pin = 7;
+
+// Setup time display for LCD
+void setup() {
+  Serial.begin(9600); // Start serial communication
+
+  if (!rtc.begin()) { // Check if RTC is connected
+    Serial.println("Couldn't find RTC");
+    while (1);
+  }
+
+  if (rtc.lostPower()) {
+    Serial.println("RTC lost power, setting the time");
+     
+
+    
+  }
+  rtc.adjust(DateTime(2024, 11, 14, 7, 59, 50));
+
+  lcd.begin(16, 2); // Initialize LCD
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Welcome To");
+  lcd.setCursor(0, 1);
+  lcd.print("Medicine Reminder");
+  delay(1000);
+
+  pinMode(push1pin, INPUT);
+  pinMode(push2pin, INPUT);
+  pinMode(push3pin, INPUT);
+  pinMode(stopPin, INPUT_PULLUP);  // Enable internal pull-up resistor for stopPin
+  pinMode(ledPin, OUTPUT);
+  pinMode(buzz, OUTPUT);
+
+  // Read previously saved push button state from EEPROM
+  val = EEPROM.read(addr);
+  if (val == 1) {
+    push1state = 1;
+  } else if (val == 2) {
+    push2state = 1;
+  } else if (val == 3) {
+    push3state = 1;
+  }
+}
+
+// Main loop
+void loop() {
+  // Check push buttons to set reminder frequency (Once, Twice, Thrice)
+  push1();
+  push2();
+  push3();
+
+  // Remind at set times
+  if (push1state == 1) at8am();
+  else if (push2state == 1) {
+    at8am();
+    at8pm();
+  }
+  else if (push3state == 1) {
+    at8am();
+    at2pm();
+    at8pm();
+  }
+
+  // Update screens periodically
+  changeScreen();
+  
+  // Stop buzzer if stop button is pressed
+  stopPins();
+}
+
+// Function to check and set reminder for once a day (8am)
+void push1() {
+  if (digitalRead(push1pin) == LOW) {  // Button pressed (pull-up resistor, so LOW when pressed)
+    EEPROM.write(addr, 1);
+    push1state = 1;
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Reminder set");
+    lcd.setCursor(0, 1);
+    lcd.print("for Once/day!");
+    delay(1200);
+  }
+}
+
+// Function to check and set reminder for twice a day (8am and 8pm)
+void push2() {
+  if (digitalRead(push2pin) == LOW) {  // Button pressed (pull-up resistor, so LOW when pressed)
+    EEPROM.write(addr, 2);
+    push2state = 1;
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Reminder set");
+    lcd.setCursor(0, 1);
+    lcd.print("for Twice/day!");
+    delay(1200);
+  }
+}
+
+// Function to check and set reminder for thrice a day (8am, 2pm, 8pm)
+void push3() {
+  if (digitalRead(push3pin) == LOW) {  // Button pressed (pull-up resistor, so LOW when pressed)
+    EEPROM.write(addr, 3);
+    push3state = 1;
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Reminder set");
+    lcd.setCursor(0, 1);
+    lcd.print("for Thrice/day!");
+    delay(1200);
+  }
+}
+
+// Stop buzzer when stop button is pressed
+void stopPins() {
+  if (digitalRead(stopPin) == LOW) {  // Button pressed (pull-up resistor, so LOW when pressed)
+    pushpressed = 1;
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Reminder Stopped");
+    delay(1200);
+    digitalWrite(buzz, LOW); // Turn off buzzer
+  }
+}
+
+// Function to start buzzing at 8am
+// Function to start buzzing at 8am
+void at8am() {
+  DateTime now = rtc.now();
+  if (now.hour() == 8 && now.minute() == 0 && now.second() == 0) {
+    startBuzz();
+    moveStepper();
+    
+  }
+}
+
+// Function to start buzzing at 2pm
+void at2pm() {
+  DateTime now = rtc.now();
+  if (now.hour() == 8 && now.minute() == 0 && now.second() == 15) {
+    startBuzz();
+    moveStepper();
+    
+  }
+}
+
+// Function to start buzzing at 8pm
+void at8pm() {
+  DateTime now = rtc.now();
+  if (now.hour() == 8 && now.minute() == 0 && now.second() == 30) {
+    startBuzz();
+    moveStepper();
+   
+  }
+}
+
+
+// Function to control buzzer
+void startBuzz() {
+  if (pushpressed == 0) {
+    digitalWrite(ledPin, HIGH);  // Blink LED and buzzer
+    delay(500);
+    digitalWrite(ledPin, LOW);
+    delay(500);
+    digitalWrite(buzz, HIGH);  // Turn on buzzer
+    delay(1000);
+    digitalWrite(buzz, LOW);  // Turn off buzzer
+  }
+}
+
+void moveStepper() {
+  int stepsForReminder = stepsPerRevolution / 5;  // 2048 steps / 5 = 409.6 steps (rounded to 410)
+  stepperName.setSpeed(5);  // Set speed (RPM)
+  stepperName.step(stepsForReminder);  // Move the stepper by 410 steps (360/5 degrees)
+}
+
+void changeScreen() {
+  static unsigned long lastTime = 0;
+  unsigned long currentTime = millis();
+  DateTime now = rtc.now();
+
+  if (currentTime - lastTime > 5000) { // Change screen every 5 seconds
+    lastTime = currentTime;
+    screens++;
+    if (screens > maxScreen) screens = 0;
+    isScreenChanged = true;
+  }
+
+  if (isScreenChanged) {
+    isScreenChanged = false;
+    switch (screens) {
+      case 0:
+        lcd.clear();
+        lcd.print("Stay Healthy :)");
+        break;
+
+      case 1:
+        lcd.clear();
+        lcd.print("Press buttons to");
+        lcd.setCursor(0, 1);
+        lcd.print("set reminders");
+        break;
+
+      case 2:
+        // Display current time in HH:MM:SS format
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        if (now.hour() < 10) lcd.print("0");
+        lcd.print(now.hour(), DEC);
+        lcd.print(":");
+        if (now.minute() < 10) lcd.print("0");
+        lcd.print(now.minute(), DEC);
+        lcd.print(":");
+        if (now.second() < 10) lcd.print("0");
+        lcd.print(now.second(), DEC);
+        lcd.setCursor(0, 1);  // Move to second row
+
+        // If reminder time matches, display "Time to eat your pills"
+        if (now.hour() == 8 && now.minute() == 0 && now.second() == 0) {
+          lcd.clear();
+          lcd.setCursor(0, 0);
+          lcd.print("Time to eat your pills!");
+          delay(2000);  // Display for 2 seconds
+          lcd.clear();
+        } else if (now.hour() == 14 && now.minute() == 0 && now.second() == 0) {
+          lcd.clear();
+          lcd.setCursor(0, 0);
+          lcd.print("Time to eat your pills!");
+          delay(2000);  // Display for 2 seconds
+          lcd.clear();
+        } else if (now.hour() == 20 && now.minute() == 0 && now.second() == 0) {
+          lcd.clear();
+          lcd.setCursor(0, 0);
+          lcd.print("Time to eat your pills!");
+          delay(2000);  // Display for 2 seconds
+          lcd.clear();
+        }
+        break;
+    }
+  }
+}
