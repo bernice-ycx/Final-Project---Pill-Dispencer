@@ -1,0 +1,111 @@
+#include <Wire.h>
+#include <RTClib.h>
+#include <LiquidCrystal_I2C.h>
+
+// Declare RTC and LCD
+RTC_DS3231 rtc;
+LiquidCrystal_I2C lcd(0x27, 16, 2); // Adjust address if needed
+
+// Button pins
+int button1Pin = 9;  // Increment hours
+int button2Pin = 8;  // Increment minutes
+int button3Pin = 7;  // Set time on RTC
+
+// Variables for time setting
+int hour = 12;    // Default start hour
+int minute = 0;   // Default start minute
+
+// Button press counts
+int button1Count = 0;
+int button2Count = 0;
+
+
+void setup() {
+  Serial.begin(9600);
+  
+  if (!rtc.begin()) {  // Check if RTC is connected
+    Serial.println("Couldn't find RTC");
+    while (1);  // Halt if RTC is not found
+  }
+
+  if (rtc.lostPower()) {
+    Serial.println("RTC lost power, setting time");
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));  // Set RTC to compile time if lost power
+  }
+
+  // Initialize LCD
+  lcd.begin(16, 2);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Set Time:");
+
+  // Set button pins
+  pinMode(button1Pin, INPUT_PULLUP); // Button 1: Increment hour
+  pinMode(button2Pin, INPUT_PULLUP); // Button 2: Increment minute
+  pinMode(button3Pin, INPUT_PULLUP); // Button 3: Set time on RTC
+}
+
+void loop() {
+  // Display the current time setting and button press counts
+  displayTime();
+
+  // Button 1: Increment hours
+  if (digitalRead(button1Pin) == LOW) {  // Button pressed (pull-up resistor)
+    hour++;
+    if (hour > 23) {
+      hour = 0; // Wrap around after 23 hours
+    }
+    button1Count++;  // Increment button 1 press count
+    delay(200);  // Debounce delay
+  }
+
+  // Button 2: Increment minutes
+  if (digitalRead(button2Pin) == LOW) {  // Button pressed (pull-up resistor)
+    minute++;
+    if (minute > 59) {
+      minute = 0; // Wrap around after 59 minutes
+    }
+    button2Count++;  // Increment button 2 press count
+    delay(200);  // Debounce delay
+  }
+
+  // Button 3: Set the RTC time
+  if (digitalRead(button3Pin) == LOW) {  // Button pressed (pull-up resistor)
+    rtc.adjust(DateTime(2024, 11, 28, hour, minute, 0));  // Set RTC time
+      
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Time Set!");
+    delay(1000);  // Show "Time Set!" for 1 second
+
+    // Reset button counts after setting time
+    button1Count = 0;
+    button2Count = 0;
+    
+
+    displayTime();  // Refresh the LCD display after reset
+  }
+}
+
+void displayTime() {
+  DateTime now = rtc.now();
+
+  // Display time on the first line
+  lcd.setCursor(0, 0);
+  if (now.hour() < 10) lcd.print("0");  // Format hour with leading zero if needed
+  lcd.print(now.hour(), DEC);
+  lcd.print(":");
+  if (now.minute() < 10) lcd.print("0");  // Format minute with leading zero if needed
+  lcd.print(now.minute(), DEC);
+  lcd.print(":");
+  if (now.second() < 10) lcd.print("0");  // Format second with leading zero if needed
+  lcd.print(now.second(), DEC);
+
+  // Display button press counts on the second line
+  lcd.setCursor(0, 1);
+  lcd.print("Hrs + ");
+  lcd.print(button1Count);
+  lcd.print(" Min + ");
+  lcd.print(button2Count);
+  
+}
